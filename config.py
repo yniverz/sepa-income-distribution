@@ -2,6 +2,7 @@ import datetime
 import json
 import math
 import re
+from typing import Union
 
 # {
 #     "source": {
@@ -15,29 +16,20 @@ import re
 #             "username": "john.doe",
 #             "password": "password123"
 #         },
-#         "trigger": {                  // triggers to distribute money (will be "and"ed)
-#             "threshold": 10000,           // amount above which to distribute (essentially a minimum balance)
-#             "delta_threshold": 100,       // (optional) amount above threshold to trigger distribution
-#             "events": [
-#                 {                     // date based events to trigger distribution
-#                     "type": "monthly",    // type of event: monthly, weekly, daily
-#                     "day": 1,             // day of month to trigger distribution (1-31) or day of week (1-7, 7=Monday)
-#                     "time": "12:00"       // time of day to trigger distribution (HH:MM)
-#                 }
-#             ]
-#         }
+#         "min_transaction": 50,          // minimum amount before transaction is submitted
+#         "min_balance": 1000,            // minimmum balance to keep on source
+#         "surplus_threshold": 2000,      // (optional) amount after which the surplus is distributed by percentage
+#         "interval": "1d"                // interval to check for actions (6h: every 6 hours, Xd: every X days, Xm: every X months, Xmm: every 1/X months with X between 2 and 4)
 #     },
-#     "destinations_url": "https://api.example.com/destinations",
+#     "destinations_url": "https://api.example.com/destinations", // url to fetch destinations from (dict of name=>balance and "last_updated"=>timestamp)
 #     "destinations": [
 #         {
 #             "name": "Destination 1",
 #             "account_name": "John Doe",
 #             "iban": "DE12345678901234567890",
 #             "bic": "DEUTDEDBFRA",
-#             "amount": {               // amount to distribute on trigger
-#                 "type": "fill_up",        // type of amount: fixed, percentage, fill_up (will fill balance up to value)
-#                 "value": 1000             // value of amount to distribute/fill up to
-#             }
+#             "min_balance": 1000,        // minimum balance to fill up to from source
+#             "surplus_percentage": 0.5   // (required if surplus_threshold set) percentage of surplus to distribute to this destination (all destinations must add up to 1)
 #         }
 #     ]
 # }
@@ -56,118 +48,40 @@ class SourceFintsData:
         self.blz = blz
         self.username = username
         self.password = password
-        
-class TriggerEventType:
-    MONTHLY = "monthly"
-    WEEKLY = "weekly"
-    DAILY = "daily"
-
-class TriggerEvent:
-    def __init__(self, event_type: TriggerEventType, day: int, time: str = "12:00"):
-        if event_type not in TriggerEventType.__dict__.values():
-            raise ValueError("Invalid event type")
-        self.event_type = event_type
-        
-        if event_type == TriggerEventType.MONTHLY and (day < 1 or day > 31):
-            raise ValueError("Day must be between 1 and 31 for monthly events")
-        elif event_type == TriggerEventType.WEEKLY and (day < 1 or day > 7):
-            raise ValueError("Day must be between 1 and 7 for weekly events")
-        self.day = day
-        
-        if not re.match(r"^(0[0-9]|1[0-9]|2[0-3]):([0-5][0-9])$", time):
-            raise ValueError("Time must be in HH:MM 24h format")
-        self.time = time
-
-        self.last_triggered = None
-
-    def is_triggered(self, tz=None):
-        now = datetime.datetime.now(tz)
-
-        if self.last_triggered is not None and (now - self.last_triggered).total_seconds() < 65:
-            return False
-
-        if self.event_type == TriggerEventType.MONTHLY:
-            if self.last_triggered.month != now.month:
-                if now.day == self.day and now.strftime("%H:%M") == self.time:
-                    self.last_triggered = now
-                    return True
-        elif self.event_type == TriggerEventType.WEEKLY:
-            if self.last_triggered.isocalendar()[1] != now.isocalendar()[1]:
-                if now.isocalendar()[2] == self.day and now.strftime("%H:%M") == self.time:
-                    self.last_triggered = now
-                    return True
-        elif self.event_type == TriggerEventType.DAILY:
-            if now.strftime("%H:%M") == self.time:
-                self.last_triggered = now
-                return True
-        return False
-
-class Trigger:
-    def __init__(self, threshold: int, delta_threshold: int = None, events: list[TriggerEvent] = []):
-        if threshold <= 0:
-            raise ValueError("Threshold must be greater than 0")
-        self.threshold = threshold
-        if delta_threshold is not None and delta_threshold <= 0:
-            raise ValueError("Delta threshold must be greater than 0")
-        self.delta_threshold = delta_threshold
-        self.events = events
-
-    def is_triggered(self, balance: int, tz=None):
-        if balance < self.threshold:
-            return False
-
-        if self.delta_threshold is not None and balance < self.threshold + self.delta_threshold:
-            return False
-
-        if not self.events:
-            return True
-
-        is_triggered = False
-        for event in self.events:
-            is_triggered = is_triggered or event.is_triggered(tz)
-        
-        return is_triggered
 
 class Source:
-    def __init__(self, fints: SourceFintsData, trigger: Trigger):
+    def __init__(self, fints: SourceFintsData, min_transaction: int = 0, min_balance: int = 0, surplus_threshold: int = None, interval: str = "1d"):
+        if min_transaction < 0:
+            raise ValueError("Minimum transaction must be greater than or equal to 0")
+        if min_balance < 0:
+            raise ValueError("Minimum balance must be greater than or equal to 0")
+        if surplus_threshold and surplus_threshold < 0:
+            raise ValueError("Surplus threshold must be greater than or equal to 0")
+        if not re.match(r"^(6h|[0-9]+d|[0-9]+m|[2-4]mm)$", interval):
+            raise ValueError("Interval must be in the format 'Xd', 'Xh' or 'Xm' where X is a positive integer, or 'Xmm' where X is a positive integer between 2 and 4")
+        
         self.fints = fints
-        self.trigger = trigger
+        self.min_transaction = min_transaction
+        self.min_balance = min_balance
+        self.surplus_threshold = surplus_threshold
+        self.interval = interval
 
-class DestinationAmountType:
-    FIXED = "fixed"
-    PERCENTAGE = "percentage"
-    FILL_UP = "fill_up"
 
-class DestinationAmount:
-    def __init__(self, amount_type: DestinationAmountType, value: int):
-        if amount_type not in DestinationAmountType.__dict__.values():
-            raise ValueError("Invalid amount type")
-        self.amount_type = amount_type
-        if value <= 0:
-            raise ValueError("Value must be greater than 0")
-        self.value = value
-
-    def get_amount(self, source: Source, source_balance: int, destination_balance: int):
-        if self.amount_type == DestinationAmountType.FIXED:
-            return self.value
-        elif self.amount_type == DestinationAmountType.PERCENTAGE:
-            delta = source_balance - source.trigger.threshold
-            if delta < 0:
-                return 0
-            return math.floor(delta * (self.value / 100))
-        elif self.amount_type == DestinationAmountType.FILL_UP:
-            return math.floor(max(0, self.value - destination_balance), 2)
-        else:
-            raise ValueError("Invalid amount type")
 
 
 class Destination:
-    def __init__(self, name: str, account_name: str, iban: str, bic: str, amount: DestinationAmount):
+    def __init__(self, name: str, account_name: str, iban: str, bic: str, min_balance: int = 0, surplus_percentage: float = 0.0):
+        if min_balance < 0:
+            raise ValueError("Minimum balance must be greater than or equal to 0")
+        if surplus_percentage < 0 or surplus_percentage > 1:
+            raise ValueError("Surplus percentage must be between 0 and 1")
+        
         self.name = name
         self.account_name = account_name
         self.iban = iban
         self.bic = bic
-        self.amount = amount
+        self.min_balance = min_balance
+        self.surplus_percentage = surplus_percentage
 
 
 class Config:
@@ -191,7 +105,7 @@ class Config:
         
     def _load(self):
         with open(self.filename, "r") as f:
-            data: dict = json.load(f)
+            data: dict[str, Union[dict, list, str]] = json.load(f)
             self.source = Source(
                 fints=SourceFintsData(
                     host=data["source"]["fints"]["host"],
@@ -203,28 +117,26 @@ class Config:
                     username=data["source"]["fints"]["username"],
                     password=data["source"]["fints"]["password"]
                 ),
-                trigger=Trigger(
-                    threshold=data["source"]["trigger"]["threshold"],
-                    delta_threshold=data["source"]["trigger"].get("delta_threshold"),
-                    events=[
-                        TriggerEvent(
-                            event_type=event["type"],
-                            day=event["day"],
-                            time=event.get("time", "12:00")
-                        ) for event in data["source"]["trigger"].get("events", [])
-                    ]
-                )
+                min_transaction=data["source"].get("min_transaction", 0),
+                min_balance=data["source"].get("min_balance", 0),
+                surplus_threshold=data["source"].get("surplus_threshold"),
+                interval=data["source"].get("interval", "1d")
             )
             self.destinations_url = data["destinations_url"]
             self.destinations = [
                 Destination(
-                    name=dest["name"],
-                    account_name=dest["account_name"],
-                    iban=dest["iban"],
-                    bic=dest["bic"],
-                    amount=DestinationAmount(
-                        amount_type=dest["amount"]["type"],
-                        value=dest["amount"]["value"]
-                    )
-                ) for dest in data.get("destinations", [])
+                    name=destination["name"],
+                    account_name=destination["account_name"],
+                    iban=destination["iban"],
+                    bic=destination["bic"],
+                    min_balance=destination["min_balance"],
+                    surplus_percentage=destination.get("surplus_percentage", 0)
+                )
+                for destination in data["destinations"]
             ]
+            if len(self.destinations) == 0:
+                raise ValueError("destinations must not be empty")
+            if self.source.surplus_threshold and sum([d.surplus_percentage for d in self.destinations]) != 1:
+                raise ValueError("Surplus percentages must add up to 1")
+            if self.source.surplus_threshold and self.source.surplus_threshold < self.source.min_balance:
+                raise ValueError("Surplus threshold must be greater than minimum balance")

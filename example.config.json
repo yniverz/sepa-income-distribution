@@ -10,17 +10,10 @@
             "username": "john.doe",
             "password": "password123"
         },
-        "trigger": {                  
-            "threshold": 10000,           
-            "delta_threshold": 100,       
-            "events": [
-                {                     
-                    "type": "monthly",    
-                    "day": 1,             
-                    "time": "12:00"      
-                }
-            ]
-        }
+        "min_transaction": 50,
+        "min_balance": 1000,
+        "surplus_threshold": 2000,
+        "interval": "1m"
     },
     "destinations_url": "https://api.example.com/destinations",
     "destinations": [
@@ -29,10 +22,8 @@
             "account_name": "John Doe",
             "iban": "DE12345678901234567890",
             "bic": "DEUTDEDBFRA",
-            "amount": {               
-                "type": "fill_up",       
-                "value": 1000         
-            }
+            "min_balance": 1000,
+            "surplus_percentage": 0.5
         }
     ]
 }
