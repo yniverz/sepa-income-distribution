@@ -1,0 +1,38 @@
+{
+    "source": {
+        "fints": {
+            "host": "fints.example.com",
+            "product_id": "1234567890",
+            "account_name": "John Doe",
+            "iban": "DE12345678901234567890",
+            "bic": "DEUTDEDBFRA",
+            "blz": "12345678",
+            "username": "john.doe",
+            "password": "password123"
+        },
+        "trigger": {                  
+            "threshold": 10000,           
+            "delta_threshold": 100,       
+            "events": [
+                {                     
+                    "type": "monthly",    
+                    "day": 1,             
+                    "time": "12:00"      
+                }
+            ]
+        }
+    },
+    "destinations_url": "https://api.example.com/destinations",
+    "destinations": [
+        {
+            "name": "Destination 1",
+            "account_name": "John Doe",
+            "iban": "DE12345678901234567890",
+            "bic": "DEUTDEDBFRA",
+            "amount": {               
+                "type": "fill_up",       
+                "value": 1000         
+            }
+        }
+    ]
+}
