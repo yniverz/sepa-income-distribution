@@ -4,39 +4,6 @@ import math
 import re
 from typing import Union
 
-# {
-#     "source": {
-#         "fints": {
-#             "host": "fints.example.com",
-#             "product_id": "1234567890",
-#             "account_name": "John Doe",
-#             "iban": "DE12345678901234567890",
-#             "bic": "DEUTDEDBFRA",
-#             "blz": "12345678",
-#             "username": "john.doe",
-#             "password": "password123"
-#         },
-#         "min_transaction": 50,          // minimum amount before transaction is submitted
-#         "min_balance": 1000,            // minimmum balance to keep on source
-#         "surplus_threshold": 2000,      // (optional) amount after which the surplus is distributed by percentage
-#         "interval": "1d"                // interval to check for actions (6h: every 6 hours, Xd: every X days, Xm: every X months, Xmm: every 1/X months with X between 2 and 4)
-#     },
-#     "destinations_url": "https://api.example.com/destinations", // url to fetch destinations from (dict of name=>balance and "last_updated"=>timestamp)
-#     "destinations": [
-#         {
-#             "name": "Destination 1",
-#             "account_name": "John Doe",
-#             "iban": "DE12345678901234567890",
-#             "bic": "DEUTDEDBFRA",
-#             "min_balance": 1000,        // minimum balance to fill up to from source
-#             "surplus_percentage": 0.5   // (required if surplus_threshold set) percentage of surplus to distribute to this destination (all destinations must add up to 1)
-#         }
-#     ]
-# }
-
-
-
-
 
 class SourceFintsData:
     def __init__(self, host: str, product_id: str, account_name: str, iban: str, bic: str, blz: str, username: str, password: str):
@@ -50,23 +17,73 @@ class SourceFintsData:
         self.password = password
 
 class Source:
-    def __init__(self, fints: SourceFintsData, min_transaction: int = 0, min_balance: int = 0, surplus_threshold: int = None, interval: str = "1d"):
+    def __init__(self, fints: SourceFintsData, min_transaction: int = 0, min_balance: int = 0, surplus_threshold: int = None, interval: str = "1d", start_hour: int = 12):
         if min_transaction < 0:
             raise ValueError("Minimum transaction must be greater than or equal to 0")
         if min_balance < 0:
             raise ValueError("Minimum balance must be greater than or equal to 0")
         if surplus_threshold and surplus_threshold < 0:
             raise ValueError("Surplus threshold must be greater than or equal to 0")
-        if not re.match(r"^(6h|[0-9]+d|[0-9]+m|[2-4]mm)$", interval):
-            raise ValueError("Interval must be in the format 'Xd', 'Xh' or 'Xm' where X is a positive integer, or 'Xmm' where X is a positive integer between 2 and 4")
+        if not re.match(r"^(6h|[0-9]+d|[0-9]+m(?:[1-9]|[1-2][0-9]|3[0-1])|[2-4]M(?:[1-9]|[1-2][0-9]|3[0-1]))$", interval):
+            raise ValueError("Interval must be in the format '6h' 'Xd' or 'XmY' where X is a positive integer, or 'XMY' where X is a positive integer between 2 and 4 and Y is the offset in days since the start of the month (0-31)")
+        if start_hour < 0 or start_hour > 23:
+            raise ValueError("Start hour must be between 0 and 23")
         
         self.fints = fints
         self.min_transaction = min_transaction
         self.min_balance = min_balance
         self.surplus_threshold = surplus_threshold
         self.interval = interval
+        self.start_hour = start_hour
 
+        self.last_action_time: datetime.datetime = None
 
+    def is_interval_reached(self, tz=None) -> bool:
+        if self._is_interval_reached(tz):
+            self.last_action_time = datetime.datetime.now(tz)
+            return True
+        
+        return False
+
+    def _is_interval_reached(self, tz=None) -> bool:
+        now = datetime.datetime.now(tz)
+        if self.interval.endswith("h") or self.interval.endswith("d"):
+            if self.last_action_time is None or now - self.last_action_time >= interval - datetime.timedelta(hours=1):
+                return self.start_hour == now.hour
+
+        parts = self.interval.lower().split("m")
+        interval_digit = int(parts[0])
+        offset_digit = int(parts[1]) # in days
+
+        if "m" in self.interval:
+            start_of_month = now.replace(day=1)
+            month = start_of_month + datetime.timedelta(days=offset_digit)
+            if start_of_month.month != month.month:
+                month = month.replace(day=1)
+                month -= datetime.timedelta(days=1)
+
+            interval = datetime.timedelta(days=28*interval_digit)
+            if self.last_action_time is None or now - self.last_action_time >= interval - datetime.timedelta(hours=1):
+                return month.day == now.day and self.start_hour == now.hour
+            
+            return False
+        
+        if "M" in self.interval:
+            start_of_month = now.replace(day=1)
+            month = start_of_month + datetime.timedelta(days=offset_digit)
+            if start_of_month.month != month.month:
+                month = month.replace(day=1)
+                month -= datetime.timedelta(days=1)
+
+            if month.day == now.day and self.start_hour == now.hour and now - self.last_action_time >= datetime.timedelta(hours=2):
+                return True
+
+            if self.last_action_time is None or now - self.last_action_time >= interval - datetime.timedelta(minutes=10):
+                return self.start_hour == now.hour
+            
+            return False
+
+        raise ValueError("Interval must be in the format '6h' 'Xd' or 'XmY' where X is a positive integer, or 'XMY' where X is a positive integer between 2 and 4 and Y is the offset in days since the start of the month (0-31)")
 
 
 class Destination:

@@ -13,7 +13,8 @@
         "min_transaction": 50,
         "min_balance": 1000,
         "surplus_threshold": 2000,
-        "interval": "1m"
+        "interval": "1m1",
+        "start_hour": 22
     },
     "destinations_url": "https://api.example.com/destinations",
     "destinations": [

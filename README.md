@@ -18,7 +18,12 @@ config example:
         "min_transaction": 50,          // minimum amount before transaction is submitted
         "min_balance": 1000,            // minimmum balance to keep on source
         "surplus_threshold": 2000,      // amount after which the surplus is distributed by percentage
-        "interval": "1d"                // interval to check for actions (6h: every 6 hours, Xd: every X days, Xm: every X months, Xmm: every 1/X months with X between 2 and 4)
+        "interval": "1m1",              // interval to check for actions: 6h: every 6 hours, 
+                                        //                                Xd: every X days, 
+                                        //                                XmY: every X months, 
+                                        //                                XMY: every 1/X months with X between 2 and 4 
+                                        //                                     with Y being the offset in days from start of month (1-31)
+        "start_hour": 22                // hour to start the interval at (0-23)
     },
     "destinations_url": "https://api.example.com/destinations", // url to fetch destinations from (dict of name=>balance and "last_updated"=>timestamp)
     "destinations": [
