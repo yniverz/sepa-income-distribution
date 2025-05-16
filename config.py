@@ -47,12 +47,13 @@ class Source:
 
     def _is_interval_reached(self, tz=None) -> bool:
         now = datetime.datetime.now(tz)
+        print(f"Current time: {now}")
         if self.interval.endswith("h") or self.interval.endswith("d"):
             interval_digit = int(self.interval[:-1])
             interval = datetime.timedelta(hours=interval_digit) if self.interval.endswith("h") else datetime.timedelta(days=interval_digit)
-
             if self.last_action_time is None or now - self.last_action_time >= interval - datetime.timedelta(hours=1):
                 return self.start_hour == now.hour or self.start_hour == (now + interval).hour
+            return False
 
         parts = self.interval.lower().split("m")
         interval_digit = int(parts[0])
@@ -140,7 +141,8 @@ class Config:
                 min_transaction=data["source"].get("min_transaction", 0),
                 min_balance=data["source"].get("min_balance", 0),
                 surplus_threshold=data["source"].get("surplus_threshold"),
-                interval=data["source"].get("interval", "1d")
+                interval=data["source"].get("interval", "1d"),
+                start_hour=data["source"].get("start_hour", 12)
             )
             self.destinations_base_url = data["destinations_base_url"].strip("/") + "/"
             self.destinations = [

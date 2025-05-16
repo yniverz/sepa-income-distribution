@@ -1,4 +1,5 @@
 import time
+import traceback
 from fints.client import FinTS3PinTanClient, NeedTANResponse, ResponseStatus, SEPAAccount
 from fints.utils import minimal_interactive_cli_bootstrap
 import requests
@@ -25,8 +26,10 @@ def do_transfer(config: Config, client: FinTS3PinTanClient, source_account: SEPA
     )
 
     if isinstance(transfer, NeedTANResponse):
-        print("Tan not suported in this app")
-        raise "Tan not suported in this app"
+        # print("Tan not suported in this app")
+        # raise "Tan not suported in this app"
+        input("Confirm tan...")
+        # client.send_tan(transfer, input("Tan (or enter if just confirm): "))
     
     print(transfer.status)
     print(transfer.responses)
@@ -51,12 +54,96 @@ def get_current_balances(config: Config):
             if update_running["status"] == "ok":
                 break
 
+            time.sleep(5)
+
         return requests.get(config.destinations_base_url + "accounts").json()
     
     return destination_balances
 
+def do_checks(config: Config, client: FinTS3PinTanClient, source_account: SEPAAccount):
+    # Get the balance of the source account
+    balance = client.get_balance(source_account).amount.amount
+    print(f"Balance: {balance}")
 
-def main():
+    # Check if the balance is above the minimum balance
+    if balance < config.source.min_balance:
+        print(f"Balance {balance} is below minimum {config.source.min_balance}. No transfer possible.")
+        return
+
+    destination_balances = get_current_balances(config)
+
+    sum_delta = 0
+    for destination in config.destinations:
+        if destination.name not in destination_balances:
+            print(f"Destination {destination.name} not found in the response.")
+            continue
+
+        destination_balance = destination_balances[destination.name]
+        print(f"Destination {destination.name} balance: {destination_balance}")
+
+        if destination_balance > destination.min_balance:
+            print(f"Destination {destination.name} balance is above minimum. No transfer needed.")
+            continue
+
+        delta = round(destination.min_balance - destination_balance)
+
+        if delta < config.source.min_transaction:
+            print(f"Delta {delta} is below minimum transaction. No transfer needed.")
+            continue
+
+        do_transfer(config, client, source_account, destination, delta)
+        
+        sum_delta += delta
+            
+        time.sleep(10)
+
+    print(f"Sum of deltas: {sum_delta}")
+
+    sum_surplus_transfered = 0
+    if config.source.surplus_threshold and balance - sum_delta > config.source.surplus_threshold and (balance - sum_delta) - config.source.min_balance:
+        print(f"Surplus {balance - sum_delta} is above threshold {config.source.surplus_threshold}. Distributing surplus.")
+
+        surplus = round(balance - sum_delta - config.source.min_balance)
+
+        for destination in config.destinations:
+            delta = round(surplus * destination.surplus_percentage)
+
+            if delta < config.source.min_transaction:
+                print(f"Delta {delta} is below minimum transaction. No transfer needed.")
+                continue
+
+            do_transfer(config, client, source_account, destination, delta)
+
+            sum_surplus_transfered += delta
+            
+            time.sleep(10)
+
+
+    print(f"Total surplus transfered: {sum_surplus_transfered}")
+    print(f"Total transfered: {sum_delta + sum_surplus_transfered}")
+    print(f"New balance: {balance - sum_delta - sum_surplus_transfered}")
+
+def loop(config: Config, client: FinTS3PinTanClient, source_account: SEPAAccount):
+    while True:
+        try:
+            if config.source.is_interval_reached():
+                print("Interval reached. Doing checks...")
+                do_checks(config, client, source_account)
+
+            print("Waiting for next interval...")
+            time.sleep(60*30)
+
+        except KeyboardInterrupt:
+            print("Exiting...")
+            break
+        except Exception as e:
+            print(traceback.format_exc())
+            print(f"Error: {e}")
+            time.sleep(60*5)
+            continue
+
+if __name__ == "__main__":
+
     # Load the configuration
     config = Config()
 
@@ -88,83 +175,6 @@ def main():
         #         source_account = account
         #         break
 
-    time.sleep(1)
+        time.sleep(1)
 
-    while True:
-        try:
-            if config.source.is_interval_reached():
-                with client:
-                    # Get the balance of the source account
-                    balance = client.get_balance(source_account)
-                    print(f"Balance: {balance}")
-
-                    # Check if the balance is above the minimum balance
-                    if balance < config.source.min_balance:
-                        print(f"Balance {balance} is below minimum {config.source.min_balance}. No transfer possible.")
-                        continue
-
-                    destination_balances = get_current_balances(config)
-
-                    sum_delta = 0
-                    for destination in config.destinations:
-                        if destination.name not in destination_balances:
-                            print(f"Destination {destination.name} not found in the response.")
-                            continue
-
-                        destination_balance = destination_balances[destination.name]
-                        print(f"Destination {destination.name} balance: {destination_balance}")
-
-                        if destination_balance > destination.min_balance:
-                            print(f"Destination {destination.name} balance is above minimum. No transfer needed.")
-                            continue
-
-                        delta = round(destination.min_balance - destination_balance)
-
-                        if delta < config.source.min_transaction:
-                            print(f"Delta {delta} is below minimum transaction. No transfer needed.")
-                            continue
-
-                        do_transfer(config, client, source_account, destination, delta)
-                        
-                        sum_delta += delta
-                            
-                        time.sleep(10)
-
-                    print(f"Sum of deltas: {sum_delta}")
-
-                    sum_surplus_transfered = 0
-                    if config.source.surplus_threshold and balance - sum_delta > config.source.surplus_threshold and (balance - sum_delta) - config.source.min_balance:
-                        print(f"Surplus {balance - sum_delta} is above threshold {config.source.surplus_threshold}. Distributing surplus.")
-
-                        surplus = round(balance - sum_delta - config.source.min_balance)
-
-                        for destination in config.destinations:
-                            delta = round(surplus * destination.surplus_percentage)
-
-                            if delta < config.source.min_transaction:
-                                print(f"Delta {delta} is below minimum transaction. No transfer needed.")
-                                continue
-
-                            do_transfer(config, client, source_account, destination, delta)
-
-                            sum_surplus_transfered += delta
-                            
-                            time.sleep(10)
-
-
-                    print(f"Total surplus transfered: {sum_surplus_transfered}")
-                    print(f"Total transfered: {sum_delta + sum_surplus_transfered}")
-                    print(f"New balance: {balance - sum_delta - sum_surplus_transfered}")
-
-            time.sleep(60*30)
-
-        except KeyboardInterrupt:
-            print("Exiting...")
-            break
-        except Exception as e:
-            print(f"Error: {e}")
-            time.sleep(60*5)
-            continue
-
-if __name__ == "__main__":
-    main()
+        loop(config, client, source_account)
