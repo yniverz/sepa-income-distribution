@@ -14,6 +14,8 @@ def do_transfer(config: Config, client: FinTS3PinTanClient, source_account: SEPA
 
     minimal_interactive_cli_bootstrap(client)
 
+    print("Doing transfer...")
+
     transfer = client.simple_sepa_transfer(
         account=source_account,
         iban=destination.iban, 
@@ -175,6 +177,8 @@ if __name__ == "__main__":
         #         source_account = account
         #         break
 
-        time.sleep(1)
+        time.sleep(10)
 
-        loop(config, client, source_account)
+        do_transfer(config, client, source_account, config.destinations[0], 5)
+
+        # loop(config, client, source_account)
