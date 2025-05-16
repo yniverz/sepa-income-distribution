@@ -179,6 +179,4 @@ if __name__ == "__main__":
 
         time.sleep(10)
 
-        do_transfer(config, client, source_account, config.destinations[0], 5)
-
-        # loop(config, client, source_account)
+        loop(config, client, source_account)
