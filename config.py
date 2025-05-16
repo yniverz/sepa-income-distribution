@@ -48,8 +48,11 @@ class Source:
     def _is_interval_reached(self, tz=None) -> bool:
         now = datetime.datetime.now(tz)
         if self.interval.endswith("h") or self.interval.endswith("d"):
+            interval_digit = int(self.interval[:-1])
+            interval = datetime.timedelta(hours=interval_digit) if self.interval.endswith("h") else datetime.timedelta(days=interval_digit)
+
             if self.last_action_time is None or now - self.last_action_time >= interval - datetime.timedelta(hours=1):
-                return self.start_hour == now.hour
+                return self.start_hour == now.hour or self.start_hour == (now + interval).hour
 
         parts = self.interval.lower().split("m")
         interval_digit = int(parts[0])

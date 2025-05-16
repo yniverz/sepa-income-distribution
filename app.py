@@ -10,7 +10,7 @@ from config import Config, Destination
 
 def do_transfer(config: Config, client: FinTS3PinTanClient, source_account: SEPAAccount, destination: Destination, amount: float):
     print("transfering " + str(amount) + " EUR to " + destination.name + " (" + destination.iban + ")")
-    
+
     minimal_interactive_cli_bootstrap(client)
 
     transfer = client.simple_sepa_transfer(
@@ -55,8 +55,6 @@ def main():
         subaccount=None,
         blz=config.source.fints.blz
     )
-    
-    # minimal_interactive_cli_bootstrap(client)
     
     with client:
         if client.init_tan_response:
