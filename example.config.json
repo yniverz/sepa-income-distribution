@@ -16,7 +16,7 @@
         "interval": "1m1",
         "start_hour": 22
     },
-    "destinations_url": "https://api.example.com/destinations",
+    "destinations_base_url": "https://api.example.com/destinations",
     "destinations": [
         {
             "name": "Destination 1",

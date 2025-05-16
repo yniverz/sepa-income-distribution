@@ -34,6 +34,27 @@ def do_transfer(config: Config, client: FinTS3PinTanClient, source_account: SEPA
     if transfer.status == ResponseStatus.ERROR:
         raise "Transfer failed\n\n"+str(transfer.responses)
 
+def get_current_balances(config: Config):
+    destination_balances = requests.get(config.destinations_base_url + "accounts").json()
+
+    if destination_balances["last_update"] < time.time() - 60*60:
+        print("Destination balances are older than 1 hour. Updating...")
+        
+        requests.get(config.destinations_base_url + "request_update")
+
+        time.sleep(1)
+
+        print("Waiting for update to finish...")
+
+        while True:
+            update_running = requests.get(config.destinations_base_url + "update_running").json()
+            if update_running["status"] == "ok":
+                break
+
+        return requests.get(config.destinations_base_url + "accounts").json()
+    
+    return destination_balances
+
 
 def main():
     # Load the configuration
@@ -82,7 +103,7 @@ def main():
                         print(f"Balance {balance} is below minimum {config.source.min_balance}. No transfer possible.")
                         continue
 
-                    destination_balances = requests.get(config.destinations_url).json()
+                    destination_balances = get_current_balances(config)
 
                     sum_delta = 0
                     for destination in config.destinations:

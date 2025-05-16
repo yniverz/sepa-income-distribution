@@ -109,7 +109,7 @@ class Config:
         self.filename = filename
 
         self.source = None
-        self.destinations_url = None
+        self.destinations_base_url = None
         self.destinations = []
 
         self.load()
@@ -142,7 +142,7 @@ class Config:
                 surplus_threshold=data["source"].get("surplus_threshold"),
                 interval=data["source"].get("interval", "1d")
             )
-            self.destinations_url = data["destinations_url"]
+            self.destinations_base_url = data["destinations_base_url"].strip("/") + "/"
             self.destinations = [
                 Destination(
                     name=destination["name"],
