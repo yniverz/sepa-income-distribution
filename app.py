@@ -1,8 +1,8 @@
+import os
 import time
 import traceback
 import uuid
 from fints.client import FinTS3PinTanClient, NeedTANResponse, ResponseStatus, SEPAAccount
-from fints.utils import minimal_interactive_cli_bootstrap
 import requests
 
 from config import Config, Destination
@@ -156,13 +156,20 @@ if __name__ == "__main__":
     # Load the configuration
     config = Config()
 
+    from_data = None
+    if os.path.exists("client_data_blob.data"):
+        with open("client_data_blob.data", "rb") as f:
+            from_data = f.read()
+            print("Loaded client data blob from client_data_blob.data")
+
     # Create the FinTS client
     client = FinTS3PinTanClient(
         bank_identifier=config.source.fints.blz,
         user_id=config.source.fints.username,
         pin=config.source.fints.password,
         server=config.source.fints.host,
-        product_id=config.source.fints.product_id
+        product_id=config.source.fints.product_id,
+        from_data=from_data,
     )
 
     # source_account: SEPAAccount = SEPAAccount(
@@ -190,6 +197,13 @@ if __name__ == "__main__":
         # offered = hispas.parameter.supported_sepa_formats
         # print("Bank advertises:", offered)
 
-    input("Press enter to continue...")
+    try:
+        input("Press enter to continue...")
     
-    loop(config, client, source_account)
+        loop(config, client, source_account)
+
+    finally:
+        dataBlob = client.deconstruct(including_private=True) # as bytes
+        with open("client_data_blob.data", "wb") as f:
+            f.write(dataBlob)
+        print("Data blob saved to client_data_blob.data")

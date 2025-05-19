@@ -25,7 +25,7 @@ config example:
                                         //                                     with Y being the offset in days from start of month (1-31)
         "start_hour": 22                // hour to start the interval at (0-23)
     },
-    "destinations_base_url": "https://api.example.com/destinations", // url to fetch destinations from (dict of name=>balance and "last_updated"=>timestamp)
+    "destinations_base_url": "https://api.example.com/destinations", // url to fetch destinations from (dict of accountname=>balance and "last_updated"=>timestamp)
     "destinations": [
         {
             "name": "Destination 1",
@@ -38,3 +38,5 @@ config example:
     ]
 }
 ```
+
+> **Note**: The `destinations_base_url` feature is made for the [Finanzguru ADB API](https://github.com/yniverz/finanzguru-adb-api) server. Other data imports are currently not supported.
