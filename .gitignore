@@ -5,6 +5,8 @@
 
 # App specific files
 config.json
+cookies.txt
+browser/
 
 # Apple specific files
 .DS_Store

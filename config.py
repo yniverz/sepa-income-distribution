@@ -6,12 +6,11 @@ from typing import Union
 
 
 class SourceFintsData:
-    def __init__(self, host: str, product_id: str, account_name: str, iban: str, bic: str, blz: str, username: str, password: str):
+    def __init__(self, host: str, product_id: str, account_name: str, iban: str, blz: str, username: str, password: str):
         self.host = host
         self.product_id = product_id
         self.account_name = account_name
         self.iban = iban
-        self.bic = bic
         self.blz = blz
         self.username = username
         self.password = password
@@ -133,7 +132,6 @@ class Config:
                     product_id=data["source"]["fints"]["product_id"],
                     account_name=data["source"]["fints"]["account_name"],
                     iban=data["source"]["fints"]["iban"],
-                    bic=data["source"]["fints"]["bic"],
                     blz=data["source"]["fints"]["blz"],
                     username=data["source"]["fints"]["username"],
                     password=data["source"]["fints"]["password"]

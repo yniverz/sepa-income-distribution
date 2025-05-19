@@ -1,5 +1,6 @@
 import time
 import traceback
+import uuid
 from fints.client import FinTS3PinTanClient, NeedTANResponse, ResponseStatus, SEPAAccount
 from fints.utils import minimal_interactive_cli_bootstrap
 import requests
@@ -8,11 +9,18 @@ from config import Config, Destination
 
 
 
+def do_tan(needTanResponse: NeedTANResponse):
+    if needTanResponse.decoupled:
+        while isinstance(client.send_tan(needTanResponse, None), NeedTANResponse):
+            time.sleep(2)
+    else:
+        res = client.send_tan(needTanResponse, input("Tan: "))
+        if isinstance(res, NeedTANResponse):
+            print("Not authorized. Exiting...")
+            exit(1)
 
 def do_transfer(config: Config, client: FinTS3PinTanClient, source_account: SEPAAccount, destination: Destination, amount: float):
     print("transfering " + str(amount) + " EUR to " + destination.name + " (" + destination.iban + ")")
-
-    minimal_interactive_cli_bootstrap(client)
 
     print("Doing transfer...")
 
@@ -24,14 +32,12 @@ def do_transfer(config: Config, client: FinTS3PinTanClient, source_account: SEPA
         amount=amount, 
         account_name=config.source.fints.account_name, 
         reason="Automatic Transfer "+str(round(time.time())), 
-        instant_payment=True
+        instant_payment=True,
+        endtoend_id=uuid.uuid4().hex
     )
 
     if isinstance(transfer, NeedTANResponse):
-        # print("Tan not suported in this app")
-        # raise "Tan not suported in this app"
-        input("Confirm tan...")
-        # client.send_tan(transfer, input("Tan (or enter if just confirm): "))
+        do_tan(transfer)
     
     print(transfer.status)
     print(transfer.responses)
@@ -130,7 +136,8 @@ def loop(config: Config, client: FinTS3PinTanClient, source_account: SEPAAccount
         try:
             if config.source.is_interval_reached():
                 print("Interval reached. Doing checks...")
-                do_checks(config, client, source_account)
+                with client:
+                    do_checks(config, client, source_account)
 
             print("Waiting for next interval...")
             time.sleep(60*30)
@@ -158,25 +165,31 @@ if __name__ == "__main__":
         product_id=config.source.fints.product_id
     )
 
-    source_account: SEPAAccount = SEPAAccount(
-        iban=config.source.fints.iban,
-        bic=config.source.fints.bic,
-        accountnumber=config.source.fints.iban[-10:],
-        subaccount=None,
-        blz=config.source.fints.blz
-    )
-    
+    # source_account: SEPAAccount = SEPAAccount(
+    #     iban=config.source.fints.iban,
+    #     bic=config.source.fints.bic,
+    #     accountnumber=config.source.fints.iban[-10:],
+    #     subaccount=None,
+    #     blz=config.source.fints.blz
+    # )
+
     with client:
         if client.init_tan_response:
-            client.send_tan(client.init_tan_response, input("Tan (or enter if just confirm): "))
+            do_tan(client.init_tan_response)
 
-        # accounts = client.get_sepa_accounts()
-        # for account in accounts:
-        #     print(f"Account: {account}")
-        #     if account.iban == config.source.fints.iban:
-        #         source_account = account
-        #         break
+        print("Connected to bank.")
 
-        time.sleep(10)
+        accounts = client.get_sepa_accounts()
+        for account in accounts:
+            print(f"Account: {account}")
+            if account.iban == config.source.fints.iban:
+                source_account = account
+                break
 
-        loop(config, client, source_account)
+        # hispas = client.bpd.find_segment_first("HISPAS")
+        # offered = hispas.parameter.supported_sepa_formats
+        # print("Bank advertises:", offered)
+
+    input("Press enter to continue...")
+    
+    loop(config, client, source_account)
