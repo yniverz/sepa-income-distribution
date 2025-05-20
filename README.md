@@ -8,7 +8,7 @@ Simple Python application that automatically redistributes income (or any positi
 
 ---
 
-## ✨ Key features
+## Key features
 
 * **FinTS 3.0** connection via [python-fints](https://github.com/raphaelm/python-fints) – works with most German and many EU banks.
 * **Rule-based transfers**
@@ -22,7 +22,7 @@ Simple Python application that automatically redistributes income (or any positi
 
 ---
 
-## 📦 Requirements
+## Requirements
 
 | Requirement                                                | Notes                                                                              |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------------------- |
@@ -39,7 +39,7 @@ pip install -r requirements.txt  # see "Installation" below if the file is missi
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 Create `config.json` in the project root. The easiest way is to copy & adapt the sample:
 
@@ -102,7 +102,7 @@ The job is triggered when the interval AND `start_hour` match *local time*. Insi
 
 ---
 
-## 🚀 Running the application
+## Running the application
 
 ```bash
 python app.py
@@ -115,7 +115,7 @@ python app.py
 
 ---
 
-## 🔒 Security considerations
+## Security considerations
 
 * **Never commit `config.json`** – add it to your `.gitignore` (already present).
   Use environment variables or a secret manager (e.g. Docker Secrets, systemd ‐ EnvironmentFile) and read them in `config.py` if you need parameter-less deployment.
