@@ -13,7 +13,7 @@ from config import Config, Destination
 def do_tan(needTanResponse: NeedTANResponse):
     genwebpush.send_simple_notifications(
         title="FinTS TAN request",
-        body="You have a new TAN request."
+        message="You have a new TAN request."
     )
 
     if needTanResponse.decoupled:
