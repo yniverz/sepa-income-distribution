@@ -6,7 +6,7 @@ from fints.client import FinTS3PinTanClient, NeedTANResponse, ResponseStatus, SE
 import requests
 import genwebpush
 
-from config import Config, Destination
+from models import Config, Destination
 
 
 def do_tan(needTanResponse: NeedTANResponse):
