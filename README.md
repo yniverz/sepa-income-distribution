@@ -100,6 +100,9 @@ Below is the full annotated example shipped with the repository. Comments (`// â
 
 The job is triggered when the interval AND `start_hour` match *local time*. Inside a single run the application sleeps 30Â minutes between checks to avoid duplicate executions.
 
+### Notifications
+The application uses the [GenWebPush](https://pypi.org/project/genwebpush) library to send notifications via the [WebPush](https://developer.mozilla.org/en-US/docs/Web/API/Push_API) API. You can get more details about how to set this up in the [GenWebPush Repo](https://github.com/yniverz/GenWebPush).
+
 ---
 
 ## Running the application
