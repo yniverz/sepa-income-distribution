@@ -8,6 +8,7 @@ config.json
 cookies.txt
 client_data_blob.data
 browser/
+notification_clients/
 
 # Apple specific files
 .DS_Store

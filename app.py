@@ -1,15 +1,21 @@
 import os
+import pathlib
 import time
 import traceback
 import uuid
 from fints.client import FinTS3PinTanClient, NeedTANResponse, ResponseStatus, SEPAAccount
 import requests
+import genwebpush
 
 from config import Config, Destination
 
 
-
 def do_tan(needTanResponse: NeedTANResponse):
+    genwebpush.send_simple_notifications(
+        title="FinTS TAN request",
+        body="You have a new TAN request."
+    )
+
     if needTanResponse.decoupled:
         while isinstance(client.send_tan(needTanResponse, None), NeedTANResponse):
             time.sleep(2)
